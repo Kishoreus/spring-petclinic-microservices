@@ -1,0 +1,168 @@
+version: "3.8"
+
+services:
+
+  # ----------------------------------------------------------
+  # CONFIG SERVER
+  # ----------------------------------------------------------
+  config-server:
+    build: ./spring-petclinic-config-server
+    container_name: config-server
+    ports:
+      - "8888:8888"
+    environment:
+      SPRING_PROFILES_ACTIVE: docker
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8888"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    networks:
+      - petclinic-net
+
+  # ----------------------------------------------------------
+  # DISCOVERY SERVER (EUREKA)
+  # ----------------------------------------------------------
+  discovery-server:
+    build: ./spring-petclinic-discovery-server
+    container_name: discovery-server
+    ports:
+      - "8761:8761"
+    depends_on:
+      config-server:
+        condition: service_healthy
+    environment:
+      SPRING_PROFILES_ACTIVE: docker
+      SPRING_CONFIG_IMPORT: optional:configserver:http://config-server:8888
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8761"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    networks:
+      - petclinic-net
+
+  # ----------------------------------------------------------
+  # MYSQL DATABASE
+  # ----------------------------------------------------------
+  db:
+    image: mysql:8
+    container_name: mysql_db
+    environment:
+      MYSQL_ROOT_PASSWORD: petclinic
+      MYSQL_DATABASE: petclinic
+    ports:
+      - "3306:3306"
+    volumes:
+      - db_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    networks:
+      - petclinic-net
+
+  # ----------------------------------------------------------
+  # CUSTOMERS SERVICE
+  # ----------------------------------------------------------
+  customers-service:
+    build: ./spring-petclinic-customers-service
+    container_name: customers-service
+    depends_on:
+      config-server:
+        condition: service_healthy
+      discovery-server:
+        condition: service_healthy
+      db:
+        condition: service_healthy
+    environment:
+      SPRING_PROFILES_ACTIVE: docker,mysql
+      SPRING_CONFIG_IMPORT: optional:configserver:http://config-server:8888
+      SPRING_DATASOURCE_URL: jdbc:mysql://db:3306/petclinic
+      SPRING_DATASOURCE_USERNAME: root
+      SPRING_DATASOURCE_PASSWORD: petclinic
+    ports:
+      - "8081:8081"
+    networks:
+      - petclinic-net
+
+  # ----------------------------------------------------------
+  # VETS SERVICE
+  # ----------------------------------------------------------
+  vets-service:
+    build: ./spring-petclinic-vets-service
+    container_name: vets-service
+    depends_on:
+      config-server:
+        condition: service_healthy
+      discovery-server:
+        condition: service_healthy
+      db:
+        condition: service_healthy
+    environment:
+      SPRING_PROFILES_ACTIVE: docker,mysql
+      SPRING_CONFIG_IMPORT: optional:configserver:http://config-server:8888
+      SPRING_DATASOURCE_URL: jdbc:mysql://db:3306/petclinic
+      SPRING_DATASOURCE_USERNAME: root
+      SPRING_DATASOURCE_PASSWORD: petclinic
+    ports:
+      - "8082:8082"
+    networks:
+      - petclinic-net
+
+  # ----------------------------------------------------------
+  # VISITS SERVICE
+  # ----------------------------------------------------------
+  visits-service:
+    build: ./spring-petclinic-visits-service
+    container_name: visits-service
+    depends_on:
+      config-server:
+        condition: service_healthy
+      discovery-server:
+        condition: service_healthy
+      db:
+        condition: service_healthy
+    environment:
+      SPRING_PROFILES_ACTIVE: docker,mysql
+      SPRING_CONFIG_IMPORT: optional:configserver:http://config-server:8888
+      SPRING_DATASOURCE_URL: jdbc:mysql://db:3306/petclinic
+      SPRING_DATASOURCE_USERNAME: root
+      SPRING_DATASOURCE_PASSWORD: petclinic
+    ports:
+      - "8083:8083"
+    networks:
+      - petclinic-net
+
+  # ----------------------------------------------------------
+  # API GATEWAY
+  # ----------------------------------------------------------
+  api-gateway:
+    build: ./spring-petclinic-api-gateway
+    container_name: api-gateway
+    depends_on:
+      config-server:
+        condition: service_healthy
+      discovery-server:
+        condition: service_healthy
+    environment:
+      SPRING_PROFILES_ACTIVE: docker
+      SPRING_CONFIG_IMPORT: optional:configserver:http://config-server:8888
+    ports:
+      - "8080:8080"
+    networks:
+      - petclinic-net
+
+# ----------------------------------------------------------
+# NETWORK
+# ----------------------------------------------------------
+networks:
+  petclinic-net:
+    driver: bridge
+
+# ----------------------------------------------------------
+# VOLUMES
+# ----------------------------------------------------------
+volumes:
+  db_data:
