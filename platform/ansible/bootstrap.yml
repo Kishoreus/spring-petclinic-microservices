@@ -1,0 +1,37 @@
+- name: Bootstrap EKS
+  hosts: localhost
+  connection: local
+
+  tasks:
+
+    - name: Add ingress nginx repo
+      shell: |
+        helm repo add ingress-nginx \
+        https://kubernetes.github.io/ingress-nginx
+
+    - name: Install ingress nginx
+      shell: |
+        helm upgrade --install ingress-nginx \
+        ingress-nginx/ingress-nginx \
+        --namespace ingress-nginx \
+        --create-namespace
+
+    - name: Install metrics server
+      shell: |
+        kubectl apply -f \
+        https://github.com/kubernetes-sigs/metrics-server/releases/latest/download/components.yaml
+
+    - name: Install Prometheus stack
+      shell: |
+        helm repo add prometheus-community \
+        https://prometheus-community.github.io/helm-charts
+
+    - name: Install kube prometheus stack
+      shell: |
+        helm upgrade --install monitoring \
+        prometheus-community/kube-prometheus-stack \
+        --namespace monitoring \
+        --create-namespace
+
+    - name: Install ArgoCD
+        https://raw.githubusercontent.com/argoproj/argo-cd/stable/manifests/install.yaml
