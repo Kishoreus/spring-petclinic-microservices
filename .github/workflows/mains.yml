@@ -1,0 +1,59 @@
+name: Deploy Petclinic Platform
+
+on:
+  workflow_dispatch:
+
+jobs:
+
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ap-south-1
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+
+      - name: Terraform Init
+        working-directory: terraform
+        run: terraform init
+
+      - name: Terraform Apply
+        working-directory: terraform
+        run: terraform apply -auto-approve
+
+      - name: Configure kubeconfig
+        run: |
+          aws eks update-kubeconfig \
+          --region ap-south-1 \
+          --name petclinic-eks
+
+      - name: Install Ansible
+        run: |
+          pip install ansible kubernetes
+
+      - name: Run Bootstrap
+        working-directory: ansible
+        run: ansible-playbook bootstrap.yml
+
+      - name: Login to ECR
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Build Docker Image
+        run: |
+          docker build -t customers-service .
+
+      - name: Tag Docker Image
+        run: |
+          docker tag customers-service:latest \
+          YOUR_ECR/customers-service:latest
+          --create-namespace
